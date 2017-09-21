@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <declare-styleable name="LeadLayout_Layout">
+        <attr name="layout_viewType" >
+            <flag name="arrow_img" value="0x000000FF"/>
+            <flag name="understand_btn" value="0x0000FF00"/>
+            <flag name="hint_text" value="0x00FF0000"/>
+        </attr>
+
+        <attr name="layout_gravity">
+
+            <!-- Push object to the top of its container, not changing its size. -->
+            <flag name="top" value="0x30" />
+            <!-- Push object to the bottom of its container, not changing its size. -->
+            <flag name="bottom" value="0x50" />
+            <!-- Push object to the left of its container, not changing its size. -->
+            <flag name="left" value="0x03" />
+            <!-- Push object to the right of its container, not changing its size. -->
+            <flag name="right" value="0x05" />
+            <!-- Place object in the vertical center of its container, not changing its size. -->
+            <flag name="center_vertical" value="0x10" />
+            <!-- Place object in the horizontal center of its container, not changing its size. -->
+            <flag name="center_horizontal" value="0x01" />
+
+            <flag name="center" value="0x11" />
+        </attr>
+
+    </declare-styleable>
+    
+    <declare-styleable name="LeadLayout">
+
+        <!--自动布局-->
+        <attr name="self_motion_layout" format="boolean"/>
+        
+    </declare-styleable>
+
+    
+</resources>
