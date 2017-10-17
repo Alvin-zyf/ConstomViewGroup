@@ -1,13 +1,12 @@
 package com.example.zyf.superdemo.view
 
+import android.app.Activity
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
 import android.util.DisplayMetrics
 import android.view.*
-import android.widget.Button
-import android.widget.ImageView
-import android.widget.TextView
+import android.widget.FrameLayout
 import com.example.zyf.superdemo.R
 
 /**
@@ -16,7 +15,7 @@ import com.example.zyf.superdemo.R
  *
  */
 @Suppress("CAST_NEVER_SUCCEEDS")
-open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
+open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener, View.OnClickListener {
 
     companion object {
 
@@ -46,6 +45,21 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
         val CENTER = 0x0FFFFFFF
 
         /**
+         * 椭圆
+         */
+        val OVAL = 0x00000F00
+
+        /**
+         * 圆
+         */
+        val CIRCLE = 0x000000F0
+
+        /**
+         * 正方形
+         */
+        val SQUARE = 0x0000000F
+
+        /**
          * 传入x,y获取象限
          */
         fun getQuanrant(x: Int, y: Int): Int {
@@ -53,9 +67,9 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
                 return FIRST_QUADRANT
             } else if (x < 0 && y > 0) {
                 return SECOND_QUADRANT
-            } else if (x < 0 && y < 0) {
-                return THIRD_QUADRANT
             } else if (x > 0 && y < 0) {
+                return THIRD_QUADRANT
+            } else if (x < 0 && y < 0) {
                 return FOURTH_QUADRANT
             }
 
@@ -66,37 +80,37 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
     /**
      * 屏幕宽度
      */
-    val SCREEN_WIDTH: Int
+    private val SCREEN_WIDTH: Int
 
     /**
      * 屏幕高度
      */
-    val SCREEN_HEIGHT: Int
+    private val SCREEN_HEIGHT: Int
 
     /**
      * 像素密度
      */
-    val DENSITY: Float
+    private val DENSITY: Float
 
     /**
      * 需要被提示view的屏幕所在位置
      */
-    val mHintViewLocation = IntArray(2)
+    private val mHintViewLocation = IntArray(2)
 
     /**
      * 引导view的所在屏幕位置
      */
-    val mLeadViewLocation = IntArray(2)
+    private val mLeadViewLocation = IntArray(2)
 
     /**
      * 是否在当前引导view范围内
      */
-    var mIsInLeadView: Boolean = false
+    private var mIsInLeadView: Boolean = false
 
     /**
      * 是否完成加载布局
      */
-    var mIsFinishLayout: Boolean = false
+    private var mIsFinishLayout: Boolean = false
 
     /**
      * 需要被提示的view
@@ -106,10 +120,15 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
             field = value
             if (mIsFinishLayout) {
                 if (initInfo()) {
-                    invalidate()
+                    requestLayout()
                 }
             }
         }
+
+    /**
+     * 需要被提示view的id，用于自定义属性
+     */
+    private var mHintViewID: Int = -1
 
     /**
      * 提示文本
@@ -119,35 +138,60 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
     /**
      * 提示箭头
      */
-    var mArrowImage: View? =  null
-
-    /**
-     * 我知道了按钮
-     */
-    var mUnderstandButton: View? = null
+    var mArrowImage: View? = null
 
     /**
      * 背景画笔
      */
-    val mBackgroundPaint = Paint()
+    private val mBackgroundPaint = Paint()
+
+    /**
+     * 设置绘制的形状
+     */
+    var mShape = OVAL
+        set(value) {
+            field = value
+            if (mIsFinishLayout) {
+                invalidate()
+            }
+        }
 
     /**
      * 视图布尔运算对象
      */
-    var mXcode_Clear: PorterDuffXfermode? = null
+    private var mXcode_Clear: PorterDuffXfermode? = null
 
     /**
      * 提示框倍率 比hintView 大多少倍
      */
-    var mHintMultiplyingPower: Float = 1.2f
+    var mHintMultiplyPower: Float = 1f
+        set(value) {
+            if (0 < value)
+                field = value
+
+            if (mIsFinishLayout && mHintView != null) {
+                if (mHintMultiplyPower >= 1) {
+                    //放大或者不变
+                    mHintMoreWidth = mHintView?.width!! * (mHintMultiplyPower - 1) / 2
+                    mHintMoreHeight = mHintView?.height!! * (mHintMultiplyPower - 1) / 2
+                } else {
+                    //缩小
+                    mHintMoreWidth = -mHintView?.width!! * (1 - mHintMultiplyPower) / 2f
+                    mHintMoreHeight = -mHintView?.height!! * (1 - mHintMultiplyPower) / 2
+                }
+            }
+
+        }
 
     //设置虚线
-    var mDashPath = DashPathEffect(floatArrayOf(15f, 15f), 0f)
+    private var mDashPath = DashPathEffect(floatArrayOf(15f, 15f), 0f)
+    //是否设置虚线
+    var mIsDashPath = true
 
     /**
      * 虚线边框偏移量
      */
-    var mDashLineOffset: Float
+    private var mDashLineOffset: Float
         set(value) {
             field = value * DENSITY
         }
@@ -158,7 +202,7 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
     var mIsSelfMotionLayout = true
 
     /**
-     * 通过倍数 mHintMultiplyingPower 获取 比原mHintView多或少出来的宽、高值
+     * 通过倍数 mHintMultiplyPower 获取 比原mHintView多或少出来的宽、高值
      */
     var mHintMoreWidth = 0f
     var mHintMoreHeight = 0f
@@ -166,7 +210,7 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
     /**
      * 当前所在象限
      */
-    var mQuanrant = FIRST_QUADRANT
+    private var mQuadrant = FIRST_QUADRANT
 
     /**
      * 象限原点 ，进行计算的时候可将 x,y 当成0,0
@@ -196,6 +240,7 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
     constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
         //设置view加载完成监听
         viewTreeObserver.addOnGlobalLayoutListener(this)
+        //关闭硬件加速
         setLayerType(View.LAYER_TYPE_SOFTWARE, null)
 
         //使其viewGroup会调用onDraw方法
@@ -206,11 +251,17 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
             isClickable = true
         }
 
-        val typeArray = context?.obtainStyledAttributes(attrs, R.styleable.LeadLayout)
+        val typeArray = context?.obtainStyledAttributes(attrs, R.styleable.LeadLayout)!!
 
-        mIsSelfMotionLayout = typeArray?.getBoolean(R.styleable.LeadLayout_self_motion_layout, true)!!
+        mIsSelfMotionLayout = typeArray.getBoolean(R.styleable.LeadLayout_selfMotionLayout, true)
 
+        mHintViewID = typeArray.getResourceId(R.styleable.LeadLayout_hintViewId, -1)
 
+        mHintMultiplyPower = typeArray.getFloat(R.styleable.LeadLayout_multiply, 1.0f)
+
+        mShape = typeArray.getInt(R.styleable.LeadLayout_shape, OVAL)
+
+        mIsDashPath = typeArray.getBoolean(R.styleable.LeadLayout_isDashLine,true)
         typeArray.recycle()
     }
 
@@ -233,21 +284,21 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
             return false
         }
 
-        //通过倍数 mHintMultiplyingPower 获取 比原mHintView多出来的宽、高值
-        if (mHintMultiplyingPower >= 1) {
+        //通过倍数 mHintMultiplyPower 获取 比原mHintView多出来的宽、高值
+        if (mHintMultiplyPower >= 1) {
             //放大或者不变
-            mHintMoreWidth = mHintView?.width!! * (mHintMultiplyingPower - 1) / 2
-            mHintMoreHeight = mHintView?.height!! * (mHintMultiplyingPower - 1) / 2
+            mHintMoreWidth = mHintView?.width!! * (mHintMultiplyPower - 1) / 2
+            mHintMoreHeight = mHintView?.height!! * (mHintMultiplyPower - 1) / 2
         } else {
             //缩小
-            mHintMoreWidth = -mHintView?.width!! * (1 - mHintMultiplyingPower) / 2f
-            mHintMoreHeight = -mHintView?.height!! * (1 - mHintMultiplyingPower) / 2
+            mHintMoreWidth = -mHintView?.width!! * (1 - mHintMultiplyPower) / 2f
+            mHintMoreHeight = -mHintView?.height!! * (1 - mHintMultiplyPower) / 2
         }
 
         val x = mZeroX - mHintViewLocation[0]
         val y = mZeroY - mHintViewLocation[1]
 
-        mQuanrant = getQuanrant(x, y)
+        mQuadrant = getQuanrant(x, y)
 
         return true
     }
@@ -262,8 +313,42 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
         mXcode_Clear = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
     }
 
+    private fun findHintView(mHintViewID: Int): View? {
+        if (context is Activity) {
+            val c = context as Activity
+            val tree = c.findViewById(android.R.id.content)
+
+            if (tree is FrameLayout) {
+                return findViewByTree(tree.getChildAt(0), mHintViewID)
+            }
+        }
+
+        return null
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun findViewByTree(view: View, mHintViewID: Int): View? {
+        var v = view.findViewById(mHintViewID)
+
+        println(view.toString())
+        if (v == null && view is ViewGroup) {
+            view.eachChild {
+                if (it is ViewGroup) {
+                    v = findViewByTree(it, mHintViewID)
+                    if (v != null) return@eachChild
+                }
+            }
+        }
+
+        return v
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+
 
         eachChild {
             if (it.visibility == View.GONE) {
@@ -272,33 +357,32 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
             //设置view的大小
             val param = it.layoutParams as LeadLayoutParams
 
+            //设置view宽度
             val childWidthMeasureSpec = getChildMeasureSpec(widthMeasureSpec,
                     paddingLeft + paddingRight + param.leftMargin + param.rightMargin, param.width)
+            //设置view高度
             val childHeightMeasureSpec = getChildMeasureSpec(heightMeasureSpec,
                     paddingTop + paddingBottom + param.topMargin + param.bottomMargin, param.height)
 
             when (param.mViewType) {
             //设置箭头对象
-                LeadLayoutParams.ARROW_IMG -> mArrowImage = it
+                LeadLayoutParams.ARROW_IMG -> {
+                    mArrowImage = it
+                }
 
             //设置提示文本的位置
-                LeadLayoutParams.HINT_TEXT -> mHintText = it
+                LeadLayoutParams.HINT_TEXT -> {
+                    mHintText = it
+                }
 
-            //设置我知道、我了解按钮位置
-                LeadLayoutParams.UNDERSTAND_BTN -> mUnderstandButton = it
             }
+
 
             it.measure(childWidthMeasureSpec, childHeightMeasureSpec)
         }
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-
-        val parentLeft = paddingLeft
-        val parentRight = right - left
-
-        val parentTop = paddingTop
-        val parentBottom = bottom - top
 
         eachChild {
             if (it.visibility == View.GONE) {
@@ -308,110 +392,118 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
             val param = it.layoutParams as LeadLayoutParams
 
             //判断是否需要自动布局 mIsSelfMotionLayout 和 当前是否设置 mGravity ，如果设置 mGravity 表示不需要自动化布局
-            param.mViewType = if (mIsSelfMotionLayout && param.mGravity == Gravity.NO_GRAVITY) param.mViewType else LeadLayoutParams.NONE
+            param.mViewType = if (mIsSelfMotionLayout) param.mViewType else LeadLayoutParams.NONE
 
             when (param.mViewType) {
             //设置箭头位置
                 LeadLayoutParams.ARROW_IMG -> {
-                    var cTop : Int = 0
-
-                    if(mHintView != null){
-                        when(mQuanrant){
-                            FIRST_QUADRANT ->{
-                                cTop = (mHintViewLocation[1] - mLeadViewLocation[1] + mHintView?.height!! * mHintMultiplyingPower).toInt()
-
-                                param.mGravity = Gravity.RIGHT or Gravity.TOP
-                            }
-
-                            SECOND_QUADRANT -> {
-                                cTop = (mHintViewLocation[1] - mLeadViewLocation[1] + mHintView?.height!! * mHintMultiplyingPower).toInt()
-
-                                param.mGravity = Gravity.LEFT or Gravity.TOP
-                            }
-
-                            THIRD_QUADRANT -> {
-                                cTop = (mHintViewLocation[1] - mLeadViewLocation[1] + mHintView?.height!! * mHintMultiplyingPower).toInt() - param.height
-                                param.mGravity = Gravity.LEFT or Gravity.BOTTOM
-                            }
-
-                            FOURTH_QUADRANT -> {
-                                cTop = (mHintViewLocation[1] - mLeadViewLocation[1] + mHintView?.height!! * mHintMultiplyingPower).toInt() - param.height
-
-                                param.mGravity = Gravity.RIGHT or Gravity.BOTTOM
-                            }
-                        }
-                    }
-
-                    layoutChildren(it,param,false,0,cTop)
+                    layoutArrowImg(param, it)
                 }
 
             //设置提示文本的位置
                 LeadLayoutParams.HINT_TEXT -> {
-                    var cTop : Int = 0
-                    var cLeft : Int = 0
-
-                    if(mArrowImage != null){
-                        when(mQuanrant){
-                            FIRST_QUADRANT ->{
-                                cTop = (mHintViewLocation[1] - mLeadViewLocation[1] + mHintView?.height!! * mHintMultiplyingPower).toInt()
-                                + (mArrowImage?.layoutParams?.height ?:0)
-
-
-
-                                param.mGravity = Gravity.RIGHT or Gravity.TOP
-                            }
-
-                            SECOND_QUADRANT -> {
-                                cTop = (mHintViewLocation[1] - mLeadViewLocation[1] + mHintView?.height!! * mHintMultiplyingPower).toInt()
-                                + (mArrowImage?.layoutParams?.height ?:0)
-
-                                param.mGravity = Gravity.LEFT or Gravity.TOP
-                            }
-
-                            THIRD_QUADRANT -> {
-                                cTop = (mHintViewLocation[1] - mLeadViewLocation[1] + mHintView?.height!! * mHintMultiplyingPower).toInt() - param.width
-                                param.mGravity = Gravity.LEFT or Gravity.BOTTOM
-                            }
-
-                            FOURTH_QUADRANT -> {
-                                cTop = (mHintViewLocation[1] - mLeadViewLocation[1] + mHintView?.height!! * mHintMultiplyingPower).toInt() - param.width
-
-                                param.mGravity = Gravity.RIGHT or Gravity.BOTTOM
-                            }
-                        }
-                    }
-
-                    layoutChildren(it,param,false,cLeft,cTop)
-                }
-
-            //设置我知道、我了解按钮位置
-                LeadLayoutParams.UNDERSTAND_BTN -> {
-
-                    layoutSpecialChildren(it,param,0,0)
+                    layoutHintText(param, it)
                 }
 
             //设置默认类型位置
                 LeadLayoutParams.NONE -> {
-                    layoutChildren(it, param, false,0,0)
+                    layoutChildren(it, param, false, 0, 0)
                 }
             }
         }
     }
 
-    protected fun layoutSpecialChildren(cView :View, param: LeadLayoutParams, cLeft : Int,cTop:Int){
+    /**
+     * 布局提示图片
+     */
+    private fun layoutArrowImg(param: LeadLayoutParams, it: View) {
+        var cTop = 0
+        val cLeft = 0
+
+        if (mHintView != null) {
+            when (mQuadrant) {
+                FIRST_QUADRANT -> {
+                    cTop = mHintViewLocation[1] - mLeadViewLocation[1] + mHintView?.height!!
+                    param.mGravity = Gravity.LEFT or Gravity.TOP
+                }
+
+                SECOND_QUADRANT -> {
+                    cTop = mHintViewLocation[1] - mLeadViewLocation[1] + mHintView?.height!!
+                    param.mGravity = Gravity.RIGHT or Gravity.TOP
+                }
+
+                THIRD_QUADRANT -> {
+                    cTop = mHintViewLocation[1] - mLeadViewLocation[1]- it.measuredHeight
+                    param.mGravity = Gravity.RIGHT or Gravity.TOP
+                }
+
+                FOURTH_QUADRANT -> {
+                    cTop = mHintViewLocation[1] - mLeadViewLocation[1] - it.measuredHeight
+                    param.mGravity = Gravity.LEFT or Gravity.TOP
+
+                }
+            }
+        }
+
+        layoutChildren(it, param, false, cLeft, cTop)
+    }
+
+    /**
+     * 布局提示文字
+     */
+    private fun layoutHintText(param: LeadLayoutParams, it: View) {
+        var cTop = 0
+        val cLeft = 0
+
+        if (mArrowImage != null && mHintView != null) {
+
+            val params: LeadLayoutParams = mArrowImage?.layoutParams!! as LeadLayoutParams
+            val arrowHeightCount = mArrowImage?.measuredHeight!! + params.topMargin + params.bottomMargin
+            when (mQuadrant) {
+                FIRST_QUADRANT -> {
+                    cTop = mHintViewLocation[1] - mLeadViewLocation[1] + mHintView?.height!! + arrowHeightCount
+
+                    param.mGravity = Gravity.LEFT or Gravity.TOP
+                }
+
+                SECOND_QUADRANT -> {
+                    cTop = mHintViewLocation[1] - mLeadViewLocation[1] + mHintView?.height!! + arrowHeightCount
+
+
+                    param.mGravity = Gravity.RIGHT or Gravity.TOP
+                }
+
+                THIRD_QUADRANT -> {
+                    cTop = mHintViewLocation[1] - mLeadViewLocation[1]  - arrowHeightCount - it.measuredHeight
+
+                    param.mGravity = Gravity.RIGHT or Gravity.TOP
+                }
+
+                FOURTH_QUADRANT -> {
+                    cTop = mHintViewLocation[1] - mLeadViewLocation[1] - arrowHeightCount - it.measuredHeight
+
+                    param.mGravity = Gravity.LEFT or Gravity.TOP
+                }
+            }
+        }
+
+        layoutChildren(it, param, false, cLeft, cTop)
+    }
+
+    private fun layoutSpecialChildren(cView: View, param: LeadLayoutParams, cLeft: Int, cTop: Int) {
         val cWidth = cView.measuredWidth
         val cHeight = cView.measuredHeight
 
 
-        cView.layout(cLeft,cTop,cLeft+cWidth, cTop + cHeight)
+        cView.layout(cLeft, cTop, cLeft + cWidth, cTop + cHeight)
     }
 
-     /**
+    /**
      * 拷贝FrameLayout的代码 注释是自己写代码
      *
      * 主要是通过 gravity 和 margin值 对子View 进行摆放
      */
-    protected fun layoutChildren(view: View, param: LeadLayoutParams, forceLeftGravity: Boolean, cL : Int,cT:Int) {
+    private fun layoutChildren(view: View, param: LeadLayoutParams, forceLeftGravity: Boolean, cL: Int, cT: Int) {
         val cWidth = view.measuredWidth
         val cHeight = view.measuredHeight
 
@@ -456,85 +548,6 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
             else -> cTop += top + param.topMargin
         }
 
-        /* when (param.mGravity) {
-
-             Gravity.BOTTOM -> {
-                 cBottom = bottom - top - param.bottomMargin
-                 cTop = bottom - top - cHeight - param.bottomMargin
-                 cLeft += param.leftMargin + paddingLeft
-                 cRight += param.leftMargin + paddingLeft
-             }
-
-             Gravity.RIGHT -> {
-                 cLeft = right - left - cWidth - param.rightMargin
-                 cRight = right - left - param.rightMargin
-             }
-
-             Gravity.CENTER_VERTICAL -> {
-                 cTop = (bottom - top) / 2 - cHeight / 2
-                 cBottom = cTop + cHeight
-
-                 cLeft += param.leftMargin + paddingLeft
-                 cRight += param.leftMargin + paddingLeft
-             }
-
-             Gravity.CENTER_HORIZONTAL -> {
-                 cLeft = (right - left) / 2 - cWidth / 2
-                 cRight = cLeft + cWidth
-
-                 cTop += param.topMargin + paddingTop
-                 cBottom += param.topMargin + paddingTop
-             }
-
-             Gravity.CENTER -> {
-                 cTop = bottom / 2 - cHeight / 2 +(paddingTop - paddingBottom + param.topMargin - param.bottomMargin)
-                 cBottom = cTop + cHeight
-                 cLeft = right / 2 - cWidth / 2 + (paddingLeft - paddingRight + param.leftMargin - param.rightMargin)
-                 cRight = cLeft + cWidth
-
-             }
-
-             Gravity.CENTER_VERTICAL or Gravity.RIGHT -> {
-                 cTop = bottom / 2 - cHeight / 2 +(paddingTop - paddingBottom + param.topMargin - param.bottomMargin)
-                 cBottom = cTop + cHeight
-
-                 cRight = right - left - param.rightMargin
-                 cLeft = (right - left) - cWidth - param.rightMargin
-             }
-
-             Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM -> {
-                 cLeft = right / 2 - cWidth / 2 + (paddingLeft - paddingRight + param.leftMargin - param.rightMargin)
-                 cRight = cLeft + cWidth
-
-                 cBottom = bottom - top - param.bottomMargin
-                 cTop = bottom - top - cHeight - param.bottomMargin
-             }
-
-             Gravity.BOTTOM or Gravity.RIGHT -> {
-                 cBottom = bottom - top - param.bottomMargin
-                 cTop = bottom - top - cHeight - param.bottomMargin
-                 cRight = right - left - param.rightMargin
-                 cLeft = (right - left) - cWidth - param.rightMargin
-             }
-
-             else ->{
-                 cLeft += param.leftMargin + paddingLeft
-                 cRight += param.leftMargin + paddingLeft
-                 cTop += param.topMargin + paddingTop
-                 cBottom += param.topMargin + paddingTop
-             }
-         }*/
-
-/*        //设置magin
-        cTop += param.topMargin + paddingTop
-        cBottom += param.topMargin + paddingTop
-        cLeft += param.leftMargin + paddingLeft
-        cRight += param.leftMargin + paddingLeft*/
-
-        //如果right 值大于 left 把left值复制给right值 bottom同理
-/*        cRight = Math.min((right - left), cRight)
-        cBottom = Math.min((bottom - top), cBottom)*/
-
         view.layout(cLeft, cTop, cLeft + cWidth, cTop + cHeight)
     }
 
@@ -543,34 +556,46 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
         canvas?.drawColor(mBackgroundColor)
 
 //        //不再范围内不继续绘制
-//        if(mHintView == null || !mIsInLeadView) return
+        if (mHintView == null || !mIsInLeadView) return
 
-        drawHint(canvas)
-        //画虚线
-        drawHintDashPath(canvas)
+        //计算出当前hintView 在的leadLayout的起始点
+        val x = mHintViewLocation[0].toFloat() - mLeadViewLocation[0].toFloat()
+        val y = mHintViewLocation[1].toFloat() - mLeadViewLocation[1].toFloat()
+
+        val startX = x - mHintMoreWidth
+        val startY = y - mHintMoreHeight
+        val endX = x + mHintView?.width?.toFloat()!! + mHintMoreWidth
+        val endY = y + mHintView?.height?.toFloat()!! + mHintMoreHeight
+
+        //掏空起始点
+        drawHint(canvas, startX, startY, endX, endY)
+
+        if(mIsDashPath)
+            //画虚线
+            drawHintDashPath(canvas, startX, startY, endX, endY)
     }
 
     /**
      * 绘制需要被掏空的形状
      */
-    private fun drawHint(canvas: Canvas?) {
+    private fun drawHint(canvas: Canvas?, startX: Float, startY: Float, endX: Float, endY: Float) {
         //设置视图布尔运算
         mBackgroundPaint.xfermode = mXcode_Clear
 
-//        canvas?.drawOval(mHintViewLocation[0].toFloat() - mHintMoreWidth, //椭圆起始点x
-//                mHintViewLocation [1].toFloat() - mHintMoreHeight, //椭圆起始点y
-//                mHintView?.width?.toFloat()!! + mHintMoreWidth, //椭圆结束点x
-//                mHintView?.height?.toFloat()!! + mHintMoreWidth //椭圆结束点y
-//                ,mBackgroundPaint)
+        darwShape(canvas,startX,startY,endX,endY)
 
-        canvas?.drawOval(mHintViewLocation[0].toFloat(), mHintViewLocation [1].toFloat()
-                , 400f, 200f, mBackgroundPaint)
+/*        canvas?.drawOval(x - mHintMoreWidth, //椭圆起始点x
+                y - mHintMoreHeight, //椭圆起始点y
+                x + mHintView?.width?.toFloat()!! + mHintMoreWidth, //椭圆结束点x
+                y + mHintView?.height?.toFloat()!! + mHintMoreHeight //椭圆结束点y
+                , mBackgroundPaint)*/
+
     }
 
     /**
      * 绘制需要被掏空形状的虚线
      */
-    private fun drawHintDashPath(canvas: Canvas?) {
+    private fun drawHintDashPath(canvas: Canvas?, startX: Float, startY: Float, endX: Float, endY: Float) {
         //取消布尔运算
         mBackgroundPaint.xfermode = null
         //设置画直线格式
@@ -580,20 +605,45 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
         mBackgroundPaint.color = Color.WHITE
         mBackgroundPaint.strokeWidth = 5f
 
-//        canvas?.drawOval(mHintViewLocation[0].toFloat() - mHintMoreWidth - mDashLineOffset, //椭圆起始点x
-//                mHintViewLocation [1].toFloat() - mHintMoreHeight  - mDashLineOffset, //椭圆起始点y
-//                mHintView?.width?.toFloat()!! + mHintMoreWidth + mDashLineOffset, //椭圆结束点x
-//                mHintView?.height?.toFloat()!! + mHintMoreWidth + mDashLineOffset//椭圆结束点y
-//                ,mBackgroundPaint)
-
-        canvas?.drawOval(mHintViewLocation[0].toFloat() - mDashLineOffset, mHintViewLocation [1].toFloat() - mDashLineOffset
-                , 400f + mDashLineOffset, 200f + mDashLineOffset, mBackgroundPaint)
+        darwShape(canvas,startX - mDashLineOffset,startY - mDashLineOffset ,endX + mDashLineOffset,endY + mDashLineOffset)
 
         //取消虚线效果
         mBackgroundPaint.style = Paint.Style.FILL
         mBackgroundPaint.pathEffect = null
         mBackgroundPaint.color = Color.BLACK
         mBackgroundPaint.strokeWidth = 0f
+    }
+
+    /**
+     * 绘制形状
+     */
+    private fun darwShape(canvas: Canvas?, startX: Float, startY: Float, endX: Float, endY: Float){
+        when (mShape) {
+            SQUARE -> canvas?.drawRect(startX,
+                    startY,
+                    endX,
+                    endY,
+                    mBackgroundPaint)
+
+            CIRCLE -> {
+                val cx = endX - startX
+                val cy = endY - startY
+
+                val radius = Math.max(cx, cy) / 2
+
+                canvas?.drawCircle(startX + cx/2,
+                        startY + cy/2,
+                        radius,
+                        mBackgroundPaint)
+            }
+
+            OVAL -> canvas?.drawOval(startX, //椭圆起始点x
+                    startY, //椭圆起始点y
+                    endX, //椭圆结束点x
+                    endY //椭圆结束点y
+                    , mBackgroundPaint)
+
+        }
     }
 
     override fun onGlobalLayout() {
@@ -603,6 +653,7 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
         //设置加载完成
         mIsFinishLayout = true
 
+
         //获取屏幕所在位置
         getLocationOnScreen(mLeadViewLocation)
 
@@ -610,58 +661,18 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
         mZeroX = mLeadViewLocation[0] + width / 2
         mZeroY = mLeadViewLocation[1] + height / 2
 
-        //初始化默认View
-//        initDefaultView()
+        //根据ID获取需要提示的view
+        if (mHintViewID != -1) {
+            val v = findHintView(mHintViewID)
+            mHintView = v ?: mHintView
+        }
 
         //初始化在onDraw方法中用到的数据
         initDraw()
-
-        //初始化信息 如坐标等
-        initInfo()
     }
 
-    /**
-     * 初始化默认显示的View
-     */
-    private fun initDefaultView() {
-        var text = false
-        var img = false
-        var btn = false
+    override fun onClick(v: View?) {
 
-        //如果开发者有自己添加ViewType 就不添加默认View
-        eachChild {
-            val param = it.layoutParams as LeadLayoutParams
-
-            if (param.mViewType == LeadLayoutParams.NONE) return@eachChild
-
-            when (param.mViewType) {
-                LeadLayoutParams.ARROW_IMG -> img = true
-
-                LeadLayoutParams.HINT_TEXT -> text = true
-
-                LeadLayoutParams.UNDERSTAND_BTN -> btn = true
-            }
-        }
-
-
-        //初始化默认arrow button hintText
-/*        if (!text) {
-            mHintText.layoutParams = LeadLayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
-                    .setViewType(LeadLayoutParams.HINT_TEXT)
-            addView(mHintText)
-        }
-
-        if (!img) {
-            mUnderstandButton.layoutParams = LeadLayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
-                    .setViewType(LeadLayoutParams.UNDERSTAND_BTN)
-            addView(mUnderstandButton)
-        }
-
-        if (!btn) {
-            mArrowImage.layoutParams = LeadLayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
-                    .setViewType(LeadLayoutParams.ARROW_IMG)
-            addView(mArrowImage)
-        }*/
     }
 
 
@@ -692,10 +703,6 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
              */
             val ARROW_IMG = 0x000000FF
 
-            /**
-             * 我知道、我了解按钮标识
-             */
-            val UNDERSTAND_BTN = 0x0000FF00
 
             /**
              * 提示文本标识
@@ -716,7 +723,7 @@ open class LeadLayout : ViewGroup, ViewTreeObserver.OnGlobalLayoutListener {
         constructor(c: Context?, attrs: AttributeSet?) : super(c, attrs) {
             val attrEmtity = c?.obtainStyledAttributes(attrs, R.styleable.LeadLayout_Layout)!!
 
-            mViewType = attrEmtity.getType(R.styleable.LeadLayout_Layout_layout_viewType)
+            mViewType = attrEmtity.getInt(R.styleable.LeadLayout_Layout_layout_viewType, NONE)
             mGravity = attrEmtity.getInt(R.styleable.LeadLayout_Layout_layout_gravity, Gravity.NO_GRAVITY)
             attrEmtity.recycle()
         }
@@ -740,18 +747,18 @@ fun View.isInMyScreen(view: View?): Boolean {
     if (view == null) return false
 
     val myLocation = IntArray(2)
-    val viewLoaction = IntArray(2)
+    val viewLocation = IntArray(2)
 
     getLocationOnScreen(myLocation)
-    view.getLocationOnScreen(viewLoaction)
+    view.getLocationOnScreen(viewLocation)
 
-    return myLocation[0] <= viewLoaction[0] &&
-            myLocation[1] <= viewLoaction[1] &&
+    return myLocation[0] <= viewLocation[0] &&
+            myLocation[1] <= viewLocation[1] &&
             width > view.width &&
             height > view.height
 }
 
-fun ViewGroup.eachChild(c: ((view: View) -> Unit)): Unit {
+fun ViewGroup.eachChild(c: ((view: View) -> Unit)) {
     (0 until childCount).map { getChildAt(it) }
             .forEach {
                 c.invoke(it)

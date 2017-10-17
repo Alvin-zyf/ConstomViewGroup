@@ -4,7 +4,6 @@
     <declare-styleable name="LeadLayout_Layout">
         <attr name="layout_viewType" >
             <flag name="arrow_img" value="0x000000FF"/>
-            <flag name="understand_btn" value="0x0000FF00"/>
             <flag name="hint_text" value="0x00FF0000"/>
         </attr>
 
@@ -29,10 +28,25 @@
     </declare-styleable>
     
     <declare-styleable name="LeadLayout">
+        <!--需要被提示的viewID-->
+        <attr name="hintViewId" format="reference"/>
 
         <!--自动布局-->
-        <attr name="self_motion_layout" format="boolean"/>
-        
+        <attr name="selfMotionLayout" format="boolean"/>
+
+        <!--放大倍数-->
+        <attr name="multiply" format="float"/>
+
+        <!--选择图形-->
+        <attr name="shape">
+            <flag name="oval" value="0x00000F00"/>
+            <flag name="cirle" value="0x000000F0"/>
+            <flag name="square" value="0x0000000F"/>
+        </attr>
+
+        <!--是否需要虚线-->
+        <attr name="isDashLine" format="boolean" />
+
     </declare-styleable>
 
     
